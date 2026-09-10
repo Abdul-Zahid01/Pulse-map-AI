@@ -8,8 +8,6 @@ interface ActivityCardListProps {
   onSelectActivity: (activity: PDXActivity) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  selectedCategory: CategoryType | 'all';
-  setSelectedCategory: (cat: CategoryType | 'all') => void;
   currentTimeMinutes: number;
 }
 
@@ -29,8 +27,6 @@ export const ActivityCardList: React.FC<ActivityCardListProps> = ({
   onSelectActivity,
   searchQuery,
   setSearchQuery,
-  selectedCategory,
-  setSelectedCategory,
   currentTimeMinutes
 }) => {
   // Utility function to check if POI is open at selected time
@@ -46,40 +42,16 @@ export const ActivityCardList: React.FC<ActivityCardListProps> = ({
 
   return (
     <div className="space-y-3">
-      {/* Search Bar & Category Filter Bar */}
-      <div className="space-y-2">
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search PDX spots, neighborhoods, or vibes..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
-          />
-        </div>
-
-        {/* Category Pills Slider */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          {(['all', 'food', 'sports', 'tech_events', 'markets', 'nightlife', 'social'] as const).map(cat => {
-            const isSelected = selectedCategory === cat;
-            const meta = CATEGORY_LABELS[cat];
-            return (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition shrink-0 flex items-center gap-1 border ${
-                  isSelected
-                    ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-sm'
-                    : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <span>{meta.icon}</span>
-                <span>{meta.label}</span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search PDX spots, neighborhoods, or vibes..."
+          className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
+        />
       </div>
 
       {/* List Count Header */}
@@ -89,7 +61,7 @@ export const ActivityCardList: React.FC<ActivityCardListProps> = ({
       </div>
 
       {/* Scrolling List */}
-      <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+      <div className="space-y-2.5 lg:max-h-[480px] lg:overflow-y-auto pr-1">
         {activities.length === 0 ? (
           <div className="text-center py-8 border border-dashed border-slate-800 rounded-2xl bg-slate-900/40 p-4">
             <p className="text-xs text-slate-400 font-medium">No activity spots match your current filters.</p>
@@ -142,6 +114,11 @@ export const ActivityCardList: React.FC<ActivityCardListProps> = ({
                     <span className="text-[10px] font-mono text-amber-300 font-bold flex items-center gap-0.5">
                       <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {act.rating}
                     </span>
+                    {typeof act.distanceMiles === 'number' && (
+                      <span className="text-[10px] font-mono text-cyan-300 font-semibold flex items-center gap-0.5">
+                        <MapPin className="w-3 h-3" /> {act.distanceMiles.toFixed(1)} mi
+                      </span>
+                    )}
                   </div>
                 </div>
 

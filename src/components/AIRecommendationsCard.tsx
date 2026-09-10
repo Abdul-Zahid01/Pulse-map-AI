@@ -58,17 +58,17 @@ export const AIRecommendationsCard: React.FC<AIRecommendationsCardProps> = ({
               className="group cursor-pointer bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-cyan-500/50 rounded-xl p-3 transition shadow-md relative"
             >
               {/* Rank Header */}
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-gradient-to-r ${rankColors[index]} flex items-center gap-1 shadow-sm`}>
+              <div className="flex flex-wrap items-center justify-between gap-1.5 mb-1.5">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-gradient-to-r ${rankColors[index]} flex items-center gap-1 shadow-sm shrink-0`}>
                     <Trophy className="w-3 h-3" />
                     #{index + 1} Recommendation
                   </span>
-                  <h4 className="font-bold text-slate-100 text-sm group-hover:text-cyan-300 transition font-heading">
+                  <h4 className="font-bold text-slate-100 text-sm group-hover:text-cyan-300 transition font-heading truncate">
                     {rec.title}
                   </h4>
                 </div>
-                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800 px-2 py-0.5 rounded-full shrink-0">
                   {rec.fitScore}% Match
                 </span>
               </div>

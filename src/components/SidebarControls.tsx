@@ -1,12 +1,15 @@
 import React from 'react';
-import { UserFilters } from '../types';
-import { Clock, Flame, Sparkles, MapPin, DollarSign, Users, Filter, Check } from 'lucide-react';
+import { UserFilters, CategoryType } from '../types';
+import { Clock, Flame, Sparkles, MapPin, DollarSign, Users, Filter, ArrowUpDown, LayoutGrid } from 'lucide-react';
+import { FilterDropdown } from './FilterDropdown';
+import { CATEGORY_LABELS } from './ActivityCardList';
 
 interface SidebarControlsProps {
   filters: UserFilters;
   setFilters: React.Dispatch<React.SetStateAction<UserFilters>>;
   onGetAIRecommendations: () => void;
   isLoadingAI: boolean;
+  availableCuisines: string[];
 }
 
 export const MOOD_BADGES = [
@@ -19,11 +22,45 @@ export const MOOD_BADGES = [
   { id: 'markets', label: 'Local Market & Crafts 🛍️', icon: '🛍️' }
 ];
 
+const CATEGORY_OPTIONS = (Object.keys(CATEGORY_LABELS) as (CategoryType | 'all')[])
+  .filter((key): key is CategoryType => key !== 'all')
+  .map(key => ({ value: key, label: CATEGORY_LABELS[key].label, icon: CATEGORY_LABELS[key].icon }));
+
+const BUDGET_OPTIONS = [
+  { value: 'all', label: 'Any Budget' },
+  { value: 'Free', label: 'Free' },
+  { value: '$', label: '$ Budget-Friendly' },
+  { value: '$$', label: '$$ Mid-Range' },
+  { value: '$$$', label: '$$$ Splurge' }
+];
+
+const GROUP_OPTIONS = [
+  { value: 'all', label: 'Any Group Size' },
+  { value: 'solo', label: 'Solo Friendly' },
+  { value: 'group', label: 'Group Friendly' }
+];
+
+const SORT_OPTIONS = [
+  { value: 'distance', label: 'Closest First' },
+  { value: 'rating', label: 'Top Rated First' },
+  { value: 'popularity', label: 'Most Active First' }
+];
+
+// Hourly time-of-day options for the scrollable Time dropdown (e.g. "2:00 AM 🌙")
+const TIME_OPTIONS = Array.from({ length: 24 }, (_, hour) => {
+  const minutesValue = hour * 60;
+  const period = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  const icon = hour >= 5 && hour < 11 ? '☕' : hour >= 11 && hour < 17 ? '☀️' : hour >= 17 && hour < 22 ? '🌆' : '🌙';
+  return { value: String(minutesValue), label: `${displayHour}:00 ${period}`, icon };
+});
+
 export const SidebarControls: React.FC<SidebarControlsProps> = ({
   filters,
   setFilters,
   onGetAIRecommendations,
-  isLoadingAI
+  isLoadingAI,
+  availableCuisines
 }) => {
   // Format current filter time into 12-hr
   const hours = Math.floor(filters.timeMinutes / 60);
@@ -32,20 +69,10 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
   const displayHours = hours % 12 === 0 ? 12 : hours % 12;
   const displayMins = mins < 10 ? `0${mins}` : mins;
 
-  const toggleMood = (label: string) => {
-    setFilters(prev => {
-      const exists = prev.selectedMoods.includes(label);
-      if (exists) {
-        return { ...prev, selectedMoods: prev.selectedMoods.filter(m => m !== label) };
-      } else {
-        return { ...prev, selectedMoods: [...prev.selectedMoods, label] };
-      }
-    });
-  };
-
-  const setQuickTime = (minsValue: number) => {
-    setFilters(prev => ({ ...prev, timeMinutes: minsValue }));
-  };
+  const cuisineOptions = availableCuisines.map(c => ({
+    value: c,
+    label: c.charAt(0).toUpperCase() + c.slice(1)
+  }));
 
   return (
     <div className="space-y-4">
@@ -81,82 +108,55 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           </div>
         </div>
 
-        {/* Quick Time Preset Buttons */}
-        <div className="grid grid-cols-4 gap-1.5 pt-1">
-          <button
-            onClick={() => setQuickTime(135)} // 2:15 AM
-            className={`px-2 py-1.5 rounded-xl text-[11px] font-semibold transition text-center border ${
-              filters.timeMinutes >= 0 && filters.timeMinutes < 300
-                ? 'bg-purple-950 text-purple-200 border-purple-700 shadow-sm'
-                : 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 border-slate-700/60'
-            }`}
-          >
-            🌙 2:15 AM
-          </button>
-          <button
-            onClick={() => setQuickTime(480)} // 8:00 AM
-            className={`px-2 py-1.5 rounded-xl text-[11px] font-semibold transition text-center border ${
-              filters.timeMinutes >= 300 && filters.timeMinutes < 720
-                ? 'bg-amber-950 text-amber-200 border-amber-700 shadow-sm'
-                : 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 border-slate-700/60'
-            }`}
-          >
-            ☕ 8:00 AM
-          </button>
-          <button
-            onClick={() => setQuickTime(840)} // 2:00 PM
-            className={`px-2 py-1.5 rounded-xl text-[11px] font-semibold transition text-center border ${
-              filters.timeMinutes >= 720 && filters.timeMinutes < 1020
-                ? 'bg-emerald-950 text-emerald-200 border-emerald-700 shadow-sm'
-                : 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 border-slate-700/60'
-            }`}
-          >
-            ☀️ 2:00 PM
-          </button>
-          <button
-            onClick={() => setQuickTime(1200)} // 8:00 PM
-            className={`px-2 py-1.5 rounded-xl text-[11px] font-semibold transition text-center border ${
-              filters.timeMinutes >= 1020
-                ? 'bg-cyan-950 text-cyan-200 border-cyan-700 shadow-sm'
-                : 'bg-slate-800/60 hover:bg-slate-800 text-slate-300 border-slate-700/60'
-            }`}
-          >
-            🌆 8:00 PM
-          </button>
-        </div>
+        {/* Scrollable Hourly Time Dropdown */}
+        <FilterDropdown
+          label="Quick Jump"
+          icon={<Clock className="w-3 h-3 text-cyan-400" />}
+          options={TIME_OPTIONS}
+          selected={[String(Math.floor(filters.timeMinutes / 60) * 60)]}
+          onChange={(values) => setFilters(prev => ({ ...prev, timeMinutes: Number(values[0]) }))}
+        />
       </div>
 
-      {/* Mood Selector Pills */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-heading">
-            <Flame className="w-4 h-4 text-emerald-400" />
-            2. Current Mood / Vibe
-          </label>
-          <span className="text-[10px] text-slate-400 font-medium">
-            {filters.selectedMoods.length === 0 ? 'All vibes' : `${filters.selectedMoods.length} selected`}
-          </span>
+      {/* Mood & Category Filters */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-3.5 space-y-3">
+        <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5 font-heading">
+          <Flame className="w-4 h-4 text-emerald-400" />
+          2. Mood & Category
+        </label>
+
+        <div className="grid grid-cols-2 gap-2">
+          <FilterDropdown
+            label="Mood / Vibe"
+            icon={<Flame className="w-3 h-3 text-emerald-400" />}
+            options={MOOD_BADGES.map(b => ({ value: b.label, label: b.label, icon: b.icon }))}
+            multiple
+            selected={filters.selectedMoods}
+            onChange={(values) => setFilters(prev => ({ ...prev, selectedMoods: values }))}
+            placeholder="All vibes"
+          />
+          <FilterDropdown
+            label="Category"
+            icon={<LayoutGrid className="w-3 h-3 text-cyan-400" />}
+            options={CATEGORY_OPTIONS}
+            multiple
+            selected={filters.selectedCategories}
+            onChange={(values) => setFilters(prev => ({ ...prev, selectedCategories: values as CategoryType[] }))}
+            placeholder="All categories"
+          />
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          {MOOD_BADGES.map(badge => {
-            const isSelected = filters.selectedMoods.includes(badge.label);
-            return (
-              <button
-                key={badge.id}
-                onClick={() => toggleMood(badge.label)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 border ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-cyan-500 to-emerald-500 text-slate-950 border-cyan-400 font-bold shadow-md shadow-cyan-500/20'
-                    : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border-slate-700/80'
-                }`}
-              >
-                <span>{badge.label}</span>
-                {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-              </button>
-            );
-          })}
-        </div>
+        {cuisineOptions.length > 0 && (
+          <FilterDropdown
+            label="Cuisine"
+            icon={<span className="text-xs">🍽️</span>}
+            options={cuisineOptions}
+            multiple
+            selected={filters.selectedCuisines}
+            onChange={(values) => setFilters(prev => ({ ...prev, selectedCuisines: values }))}
+            placeholder="All cuisines"
+          />
+        )}
       </div>
 
       {/* Priorities & Filters */}
@@ -166,7 +166,7 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
           3. Priorities & Habits
         </label>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Max Distance Slider */}
           <div className="space-y-1">
             <div className="flex justify-between text-xs">
@@ -185,61 +185,46 @@ export const SidebarControls: React.FC<SidebarControlsProps> = ({
             />
           </div>
 
-          {/* Social Preference Toggle */}
-          <div className="space-y-1">
-            <div className="text-xs text-slate-400 font-medium flex items-center gap-1">
-              <Users className="w-3 h-3 text-emerald-400" /> Group Size
-            </div>
-            <div className="flex bg-slate-800 p-0.5 rounded-xl border border-slate-700">
-              {(['all', 'solo', 'group'] as const).map(mode => (
-                <button
-                  key={mode}
-                  onClick={() => setFilters(prev => ({ ...prev, socialMode: mode }))}
-                  className={`flex-1 text-[10px] font-bold py-1 rounded-lg capitalize transition ${
-                    filters.socialMode === mode
-                      ? 'bg-cyan-500 text-slate-950 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Social Preference Dropdown */}
+          <FilterDropdown
+            label="Group Size"
+            icon={<Users className="w-3 h-3 text-emerald-400" />}
+            options={GROUP_OPTIONS}
+            selected={[filters.socialMode]}
+            onChange={(values) => setFilters(prev => ({ ...prev, socialMode: values[0] as UserFilters['socialMode'] }))}
+          />
         </div>
 
-        {/* Budget Filter & Open Now Toggle */}
-        <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-          <div className="flex items-center gap-1.5">
-            <DollarSign className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-xs font-medium text-slate-400">Budget:</span>
-            <div className="flex gap-1">
-              {['all', '$', '$$', 'Free'].map(b => (
-                <button
-                  key={b}
-                  onClick={() => setFilters(prev => ({ ...prev, budgetFilter: b }))}
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-md border transition ${
-                    filters.budgetFilter === b
-                      ? 'bg-amber-500 text-slate-950 border-amber-400'
-                      : 'bg-slate-800 text-slate-400 border-slate-700'
-                  }`}
-                >
-                  {b}
-                </button>
-              ))}
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-2">
+          {/* Budget Dropdown */}
+          <FilterDropdown
+            label="Budget"
+            icon={<DollarSign className="w-3 h-3 text-amber-400" />}
+            options={BUDGET_OPTIONS}
+            selected={[filters.budgetFilter]}
+            onChange={(values) => setFilters(prev => ({ ...prev, budgetFilter: values[0] }))}
+          />
 
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={filters.onlyOpenNow}
-              onChange={(e) => setFilters(prev => ({ ...prev, onlyOpenNow: e.target.checked }))}
-              className="w-3.5 h-3.5 rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0"
-            />
-            <span className="text-xs font-semibold text-slate-300">Open Now Only</span>
-          </label>
+          {/* Sort By Dropdown */}
+          <FilterDropdown
+            label="Sort By"
+            icon={<ArrowUpDown className="w-3 h-3 text-cyan-400" />}
+            options={SORT_OPTIONS}
+            selected={[filters.sortBy]}
+            onChange={(values) => setFilters(prev => ({ ...prev, sortBy: values[0] as UserFilters['sortBy'] }))}
+          />
         </div>
+
+        {/* Open Now Toggle */}
+        <label className="flex items-center gap-1.5 cursor-pointer pt-1 border-t border-slate-800/80">
+          <input
+            type="checkbox"
+            checked={filters.onlyOpenNow}
+            onChange={(e) => setFilters(prev => ({ ...prev, onlyOpenNow: e.target.checked }))}
+            className="w-3.5 h-3.5 rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0"
+          />
+          <span className="text-xs font-semibold text-slate-300">Open Now Only</span>
+        </label>
       </div>
 
       {/* AI Recommendation Trigger Button */}

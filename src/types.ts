@@ -19,6 +19,7 @@ export interface PDXActivity {
   rating: number;
   featuredHighlight?: string;
   distanceMiles?: number;
+  cuisine?: string; // only present for food category places, sourced from real OSM data when available
 }
 
 export interface PersonaProfile {
@@ -43,6 +44,9 @@ export interface UserFilters {
   socialMode: 'all' | 'solo' | 'group';
   searchQuery: string;
   onlyOpenNow: boolean;
+  sortBy: 'distance' | 'rating' | 'popularity';
+  minRating: number; // 0 = no minimum
+  selectedCuisines: string[]; // empty = all cuisines
 }
 
 export interface AIRecommendation {

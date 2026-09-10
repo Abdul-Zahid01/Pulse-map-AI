@@ -37,7 +37,7 @@ export const PersonaModal: React.FC<PersonaModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-hidden shadow-2xl relative">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full overflow-y-auto max-h-[90vh] shadow-2xl relative">
         {/* Header */}
         <div className="p-4 bg-gradient-to-r from-slate-900 to-cyan-950 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">

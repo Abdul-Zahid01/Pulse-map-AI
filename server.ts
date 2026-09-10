@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import { fetchDowntownPortlandPlaces } from "./src/data/realPlaces";
 
 dotenv.config();
 
@@ -14,6 +15,17 @@ app.use(express.json());
 // API routes FIRST
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", app: "Pulse Map PDX" });
+});
+
+// Real Downtown Portland venues pulled live from OpenStreetMap (free, no API key required)
+app.get("/api/places", async (_req, res) => {
+  try {
+    const activities = await fetchDowntownPortlandPlaces();
+    res.json({ activities });
+  } catch (error) {
+    console.error("Failed to fetch real places from Overpass:", error);
+    res.status(502).json({ activities: [], error: "Failed to fetch live places" });
+  }
 });
 
 app.post("/api/recommend", async (req, res) => {

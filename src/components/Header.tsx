@@ -57,12 +57,12 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-4 flex items-center justify-between z-30 shrink-0">
+    <header className="min-h-16 border-b border-slate-800 bg-slate-900/90 backdrop-blur-md px-3 sm:px-4 py-2 flex flex-wrap items-center justify-between gap-2 z-30 shrink-0">
       {/* Brand Identity */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-emerald-500 to-indigo-600 p-0.5 shadow-lg shadow-cyan-500/20">
+      <div className="flex items-center gap-2 sm:gap-3 order-1">
+        <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-cyan-600 via-emerald-500 to-indigo-600 p-0.5 shadow-lg shadow-cyan-500/20 shrink-0">
           <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
-            <Compass className="w-5 h-5 text-cyan-400 animate-pulse" />
+            <Compass className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-pulse" />
           </div>
           <span className="absolute -top-1 -right-1 flex h-3 w-3">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -70,12 +70,12 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </div>
 
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-cyan-300 bg-clip-text text-transparent">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <h1 className="text-base sm:text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-100 to-cyan-300 bg-clip-text text-transparent whitespace-nowrap">
               PULSE MAP <span className="text-cyan-400 font-extrabold">PDX</span>
             </h1>
-            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-cyan-950 text-cyan-400 border border-cyan-800/80 rounded-full">
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest bg-cyan-950 text-cyan-400 border border-cyan-800/80 rounded-full hidden sm:inline-block">
               Live
             </span>
           </div>
@@ -86,7 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Center Simulated Time Widget */}
-      <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800/90 rounded-xl px-3 py-1.5 shadow-inner">
+      <div className="flex items-center gap-2 bg-slate-950/80 border border-slate-800/90 rounded-xl px-3 py-1.5 shadow-inner order-3 sm:order-2 basis-full sm:basis-auto justify-center">
         <Clock className="w-4 h-4 text-cyan-400" />
         <div className="flex items-baseline gap-1.5">
           <span className="text-sm font-bold text-slate-100 font-mono tracking-tight">
@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right Controls: Persona & Social Count */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 order-2 sm:order-3">
         {/* Active Portlanders Pulse Counter */}
         <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/50 border border-slate-700/60 text-xs">
           <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -121,10 +121,10 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Persona Quick Indicator */}
         <button
           onClick={onOpenPersonaModal}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-800/80 text-xs font-semibold text-cyan-200 transition shadow-sm group"
+          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-cyan-950/60 hover:bg-cyan-900/60 border border-cyan-800/80 text-xs font-semibold text-cyan-200 transition shadow-sm group"
         >
           <span className="text-base">{activePersona.avatarEmoji}</span>
-          <span className="max-w-[110px] truncate">{activePersona.name}</span>
+          <span className="max-w-[110px] truncate hidden sm:inline">{activePersona.name}</span>
           <UserCheck className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
         </button>
 

@@ -1,7 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import L from 'leaflet';
+import React, { useEffect, useRef, useState } from 'react';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { PDXActivity, CategoryType } from '../types';
 import { CATEGORY_LABELS } from './ActivityCardList';
+
+type MapTheme = 'day' | 'night';
 
 interface MapViewProps {
   activities: PDXActivity[];
@@ -20,6 +23,69 @@ const CATEGORY_COLORS: Record<CategoryType, { bg: string; border: string; glow: 
   social: { bg: '#3b82f6', border: '#60a5fa', glow: 'rgba(59, 130, 246, 0.6)', text: '#000' }
 };
 
+// Free OpenFreeMap vector styles — no API key required, includes buildings for 3D extrusion
+const STYLE_URLS: Record<MapTheme, string> = {
+  night: 'https://tiles.openfreemap.org/styles/dark',
+  day: 'https://tiles.openfreemap.org/styles/positron'
+};
+
+// Assigns each building a vivid color from a fixed palette (bucketed by feature id) for a playful,
+// cartoon-city look instead of one flat "glass box" tone. Reuses the same hues as the POI category pins.
+const NIGHT_BUILDING_PALETTE = ['#f59e0b', '#10b981', '#06b6d4', '#f43f5e', '#a855f7', '#3b82f6', '#fb923c', '#34d399'];
+const DAY_BUILDING_PALETTE = ['#fbbf24', '#6ee7b7', '#67e8f9', '#fda4af', '#c4b5fd', '#93c5fd', '#fdba74', '#5eead4'];
+
+const buildPalette = (colors: string[]): maplibregl.ExpressionSpecification => [
+  'match',
+  ['%', ['coalesce', ['id'], 0], colors.length],
+  ...colors.flatMap((color, i) => [i, color]),
+  colors[0]
+];
+
+const BUILDING_COLOR: Record<MapTheme, maplibregl.ExpressionSpecification> = {
+  night: buildPalette(NIGHT_BUILDING_PALETTE),
+  day: buildPalette(DAY_BUILDING_PALETTE)
+};
+
+// Directional light gives the extruded buildings visible shading/depth instead of flat silhouettes
+const LIGHT_PRESET: Record<MapTheme, maplibregl.LightSpecification> = {
+  night: { anchor: 'viewport', color: '#8ec9ff', intensity: 0.45, position: [1.15, 210, 30] },
+  day: { anchor: 'viewport', color: '#ffffff', intensity: 0.55, position: [1.15, 210, 60] }
+};
+
+// Custom MapLibre control: a small Day/Night toggle button docked next to the zoom controls
+class ThemeToggleControl implements maplibregl.IControl {
+  private container?: HTMLDivElement;
+
+  constructor(
+    private onToggle: () => void,
+    private buttonRef: React.MutableRefObject<HTMLButtonElement | null>,
+    private initialLabel: string
+  ) {}
+
+  onAdd() {
+    const container = document.createElement('div');
+    container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.title = 'Toggle day / night map';
+    button.style.width = 'auto';
+    button.style.padding = '0 10px';
+    button.style.fontSize = '12px';
+    button.style.fontWeight = '700';
+    button.style.whiteSpace = 'nowrap';
+    button.textContent = this.initialLabel;
+    button.onclick = this.onToggle;
+    this.buttonRef.current = button;
+    container.appendChild(button);
+    this.container = container;
+    return container;
+  }
+
+  onRemove() {
+    this.container?.parentNode?.removeChild(this.container);
+  }
+}
+
 export const MapView: React.FC<MapViewProps> = ({
   activities,
   selectedActivity,
@@ -28,38 +94,112 @@ export const MapView: React.FC<MapViewProps> = ({
   currentTimeMinutes
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<{ [key: string]: L.Marker }>({});
-  const heatCirclesRef = useRef<L.Layer[]>([]);
+  const mapInstanceRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<{ [key: string]: maplibregl.Marker }>({});
+  const popupsRef = useRef<{ [key: string]: maplibregl.Popup }>({});
+  const styleReadyRef = useRef(false);
+  const themeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [theme, setTheme] = useState<MapTheme>('night');
+
+  // Adds the 3D building extrusion, lighting and activity glow layers on top of whichever base style is active
+  const setupStyleLayers = (map: maplibregl.Map, activeTheme: MapTheme) => {
+    const labelLayer = map.getStyle().layers?.find(l => l.type === 'symbol');
+    map.addLayer(
+      {
+        id: '3d-buildings',
+        source: 'openmaptiles',
+        'source-layer': 'building',
+        type: 'fill-extrusion',
+        minzoom: 13,
+        paint: {
+          'fill-extrusion-color': BUILDING_COLOR[activeTheme],
+          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 12],
+          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+          'fill-extrusion-opacity': 1,
+          'fill-extrusion-vertical-gradient': true
+        }
+      },
+      labelLayer?.id
+    );
+
+    map.setLight(LIGHT_PRESET[activeTheme]);
+
+    // Small translucent glow per busy spot instead of large overlapping circles
+    map.addSource('activity-heat', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({
+      id: 'activity-heat-layer',
+      type: 'circle',
+      source: 'activity-heat',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, ['*', ['get', 'weight'], 0.6], 16, ['*', ['get', 'weight'], 1.8]],
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.08,
+        'circle-blur': 0.8
+      }
+    });
+  };
 
   // Initialize Map Once
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Center on Downtown Portland
-    const map = L.map(mapContainerRef.current, {
-      center: [45.518, -122.668],
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: STYLE_URLS[theme],
+      center: [-122.681071, 45.5103571], // 1818 SW 4th Ave, Portland, OR 97201
       zoom: 13,
-      zoomControl: false
+      pitch: 50,
+      bearing: -12,
+      antialias: true,
+      attributionControl: false
     });
 
-    // CartoDB Dark Matter tiles for Snapchat Map style
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; CARTO & OpenStreetMap'
-    }).addTo(map);
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    map.addControl(
+      new ThemeToggleControl(() => setTheme(prev => (prev === 'night' ? 'day' : 'night')), themeButtonRef, '🌙 Night'),
+      'top-right'
+    );
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
 
-    // Zoom controls on top right
-    L.control.zoom({ position: 'topright' }).addTo(map);
+    map.on('load', () => {
+      setupStyleLayers(map, theme);
+      styleReadyRef.current = true;
+      renderActivityLayersRef.current();
+    });
 
     mapInstanceRef.current = map;
 
     return () => {
       map.remove();
       mapInstanceRef.current = null;
+      styleReadyRef.current = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Swap the base style when the user toggles day/night, then re-attach our custom layers
+  const isFirstThemeRun = useRef(true);
+  useEffect(() => {
+    if (themeButtonRef.current) {
+      themeButtonRef.current.textContent = theme === 'night' ? '🌙 Night' : '☀️ Day';
+    }
+
+    if (isFirstThemeRun.current) {
+      isFirstThemeRun.current = false;
+      return;
+    }
+
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    styleReadyRef.current = false;
+    map.setStyle(STYLE_URLS[theme]);
+    map.once('style.load', () => {
+      setupStyleLayers(map, theme);
+      styleReadyRef.current = true;
+      renderActivityLayersRef.current();
+    });
+  }, [theme]);
 
   // Helper to check open status
   const isPOIOpen = (act: PDXActivity) => {
@@ -72,36 +212,30 @@ export const MapView: React.FC<MapViewProps> = ({
     return currentCheck >= startHour && currentCheck < endHour;
   };
 
-  // Update Markers & Heatmaps whenever activities, selectedActivity or time change
-  useEffect(() => {
+  const renderActivityLayers = () => {
     const map = mapInstanceRef.current;
-    if (!map) return;
+    if (!map || !styleReadyRef.current) return;
+
+    // Update the subtle glow layer (kept small & translucent so it never hides the map)
+    const heatSource = map.getSource('activity-heat') as maplibregl.GeoJSONSource | undefined;
+    if (heatSource) {
+      const heatFeatures = activities
+        .filter(act => act.activeUsersCount > 25)
+        .map(act => ({
+          type: 'Feature' as const,
+          properties: {
+            weight: Math.min(40, 12 + act.activeUsersCount * 0.35),
+            color: CATEGORY_COLORS[act.category].bg
+          },
+          geometry: { type: 'Point' as const, coordinates: [act.lng, act.lat] }
+        }));
+      heatSource.setData({ type: 'FeatureCollection', features: heatFeatures });
+    }
 
     // Clear existing markers
-    (Object.values(markersRef.current) as L.Marker[]).forEach(marker => marker.remove());
+    Object.values(markersRef.current).forEach(marker => marker.remove());
     markersRef.current = {};
-
-    // Clear existing heat circles
-    heatCirclesRef.current.forEach((c: L.Layer) => c.remove());
-    heatCirclesRef.current = [];
-
-    // Render Heatmap pulses around active hubs
-    activities.forEach(act => {
-      if (act.activeUsersCount > 25) {
-        const colors = CATEGORY_COLORS[act.category];
-        const circle = L.circle([act.lat, act.lng], {
-          radius: 350 + act.activeUsersCount * 5,
-          color: colors.bg,
-          fillColor: colors.bg,
-          fillOpacity: 0.12,
-          stroke: true,
-          weight: 1,
-          opacity: 0.4
-        }).addTo(map);
-
-        heatCirclesRef.current.push(circle);
-      }
-    });
+    popupsRef.current = {};
 
     // Create Markers
     activities.forEach(act => {
@@ -115,8 +249,10 @@ export const MapView: React.FC<MapViewProps> = ({
         ? `<div style="position: absolute; top:-6px; left:-6px; right:-6px; bottom:-6px; border-radius: 9999px; border: 2px solid ${colors.bg}; animation: map-pulse-ring 2s cubic-bezier(0.45, 0, 0.55, 1) infinite;"></div>`
         : '';
 
-      const markerHtml = `
-        <div style="position: relative; cursor: pointer; transform: ${isSelected ? 'scale(1.25)' : 'scale(1)'}; transition: transform 0.2s ease;">
+      const el = document.createElement('div');
+      el.style.cursor = 'pointer';
+      el.innerHTML = `
+        <div style="position: relative; transform: ${isSelected ? 'scale(1.25)' : 'scale(1)'}; transition: transform 0.2s ease;">
           ${pulseHtml}
           <div style="
             width: 36px;
@@ -147,16 +283,6 @@ export const MapView: React.FC<MapViewProps> = ({
           "></div>
         </div>
       `;
-
-      const customIcon = L.divIcon({
-        html: markerHtml,
-        className: 'custom-snap-marker',
-        iconSize: [36, 36],
-        iconAnchor: [18, 42],
-        popupAnchor: [0, -38]
-      });
-
-      const marker = L.marker([act.lat, act.lng], { icon: customIcon }).addTo(map);
 
       // Build Popup Content HTML
       const popupHtml = `
@@ -210,14 +336,9 @@ export const MapView: React.FC<MapViewProps> = ({
         </div>
       `;
 
-      marker.bindPopup(popupHtml);
+      const popup = new maplibregl.Popup({ offset: 38, closeButton: true, maxWidth: '280px' }).setHTML(popupHtml);
 
-      // Event Handlers
-      marker.on('click', () => {
-        onSelectActivity(act);
-      });
-
-      marker.on('popupopen', () => {
+      popup.on('open', () => {
         setTimeout(() => {
           const btn = document.getElementById(`btn-join-${act.id}`);
           if (btn) {
@@ -229,8 +350,27 @@ export const MapView: React.FC<MapViewProps> = ({
         }, 50);
       });
 
+      const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+        .setLngLat([act.lng, act.lat])
+        .setPopup(popup)
+        .addTo(map);
+
+      el.addEventListener('click', () => {
+        onSelectActivity(act);
+      });
+
       markersRef.current[act.id] = marker;
+      popupsRef.current[act.id] = popup;
     });
+  };
+
+  // Keep a ref to the latest render function so the map's 'load' handler (registered once) can call it
+  const renderActivityLayersRef = useRef(renderActivityLayers);
+  renderActivityLayersRef.current = renderActivityLayers;
+
+  // Update Markers & Heat Glow whenever activities, selectedActivity or time change
+  useEffect(() => {
+    renderActivityLayers();
   }, [activities, selectedActivity, currentTimeMinutes]);
 
   // Center map on selectedActivity when clicked from list
@@ -238,13 +378,16 @@ export const MapView: React.FC<MapViewProps> = ({
     const map = mapInstanceRef.current;
     if (!map || !selectedActivity) return;
 
-    map.flyTo([selectedActivity.lat, selectedActivity.lng], 14, {
-      duration: 1.2
+    map.flyTo({
+      center: [selectedActivity.lng, selectedActivity.lat],
+      zoom: 15.5,
+      pitch: 55,
+      duration: 1200
     });
 
-    const marker = markersRef.current[selectedActivity.id];
-    if (marker) {
-      marker.openPopup();
+    const popup = popupsRef.current[selectedActivity.id];
+    if (popup) {
+      popup.addTo(map);
     }
   }, [selectedActivity]);
 
@@ -287,7 +430,7 @@ export const MapView: React.FC<MapViewProps> = ({
       {/* Portland Center Marker Reference */}
       <div className="absolute bottom-4 right-4 z-20 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-[10px] text-slate-400 font-mono shadow-lg flex items-center gap-2 pointer-events-auto">
         <span className="w-2 h-2 rounded-full bg-emerald-400" />
-        <span>Portland, OR (45.5152° N, 122.6784° W)</span>
+        <span>1818 SW 4th Ave, Portland, OR (45.5104° N, 122.6811° W)</span>
       </div>
     </div>
   );
